@@ -503,10 +503,9 @@ static inline int get_stream_token (lua_State *L)
   char *sbuf = luaL_prepbuffer(&buf);
   if (!pdfioStreamGetToken(tkstream->stream, sbuf, LUAL_BUFFERSIZE))
     return 0;
-  lua_pushstring(L, "unknown");
   luaL_addsize(&buf, strnlen(sbuf, LUAL_BUFFERSIZE));
   luaL_pushresult(&buf);
-  return 2;
+  return 1;
 }
 
 luaL_Reg fns[] = {
