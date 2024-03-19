@@ -1,3 +1,5 @@
+-- mutool convert -F stext.json -O preserve-images,dehyphenate -o out.json 1703.02507.pdf
+
 local err = require("santoku.error")
 local error = err.error
 
@@ -18,6 +20,7 @@ local iconv = require("santoku.iconv")
 os.setlocale(os.getenv("LC_ALL") or os.getenv("LANG") or "en_US.UTF-8")
 
 local pdf = require("santoku.pdf.capi")
+local extract = require("santoku.pdf.extract")
 
 local open = pdf.open
 local close = pdf.close
@@ -223,10 +226,12 @@ local function step (stack)
       return step(stack)
     elseif el.in_text and val == "ET" then
       el.in_text = false
-      return step(stack)
+      return "stream-token", "close-text"
     elseif not el.in_text and val == "BT" then
       el.in_text = true
-      return step(stack)
+      return "stream-token", "open-text"
+    elseif el.in_text and smatch(val, "^/F") then
+      return "stream-token", "font", ssub(val, 3), get_stream_token(el.stream)
     elseif el.in_text and smatch(val, "^%(") then
       el.spacing = false
       val = clean_text(ssub(val, 2, #val))
@@ -276,4 +281,4 @@ local function walk (fp)
   end
 end
 
-return merge({ walk = walk }, pdf)
+return merge({ walk = walk }, extract, pdf)

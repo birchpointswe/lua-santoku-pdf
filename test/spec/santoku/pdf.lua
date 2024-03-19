@@ -8,15 +8,15 @@ test("pdf", function ()
 
   local els = pdf.walk(os.getenv("TK_PDF_TEST_FILE") or "test/res/bitcoin.pdf")
 
-  els = it.filter(function (m, t)
-    return m == "stream-token" and t == "text"
-  end, els)
+  -- els = it.filter(function (m, t)
+  --   return m == "stream-token" and t == "text"
+  -- end, els)
 
-  els = it.take(20000, els)
-  -- it.each(print, els)
+  els = it.take(10000, els)
+  it.each(print, els)
 
-  print(arr.concat(it.collect(it.map(function (_, _, v)
-    return v
-  end, els))))
+  -- print(arr.concat(it.collect(it.map(function (_, _, v)
+  --   return v
+  -- end, els))))
 
 end)

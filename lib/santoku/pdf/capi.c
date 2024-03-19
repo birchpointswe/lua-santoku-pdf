@@ -475,8 +475,8 @@ static inline int get_obj_stream (lua_State *L)
 static inline int get_page_stream (lua_State *L)
 {
   lua_settop(L, 1);
-  tkpdf_obj_t *tkobj = peek_obj(L, 1);
-  pdfio_stream_t *stream = pdfioPageOpenStream(tkobj->obj, 0, true);
+  tkpdf_page_t *tkpage = peek_page(L, 1);
+  pdfio_stream_t *stream = pdfioPageOpenStream(tkpage->page, 0, true);
   if (!stream)
     return 0;
   tkpdf_stream_t *tkstream = lua_newuserdata(L, sizeof(tkpdf_stream_t)); // fp pdf
