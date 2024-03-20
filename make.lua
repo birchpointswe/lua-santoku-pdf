@@ -1,13 +1,16 @@
 local env = {
 
   name = "santoku-pdf",
-  version = "0.0.3-1",
+  version = "0.0.4-1",
   variable_prefix = "TK_PDF",
   license = "MIT",
   public = true,
 
   dependencies = {
     "lua >= 5.1",
+    "santoku >= 0.0.203-1",
+    "santoku-system >= 0.0.23-1",
+    "lua-cjson >= 2.1.0.10-1"
   },
 
   test = {
