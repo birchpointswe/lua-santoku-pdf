@@ -3,19 +3,9 @@ local error = err.error
 
 local arr = require("santoku.array")
 local apush = arr.push
-local acat = arr.concat
 
 local tbl = require("santoku.table")
 local merge = tbl.merge
-
-local str = require("santoku.string")
-local schar = str.char
-local sgsub = str.gsub
-local ssub = str.sub
-local smatch = str.match
-
-local iconv = require("santoku.iconv")
-os.setlocale(os.getenv("LC_ALL") or os.getenv("LANG") or "en_US.UTF-8")
 
 local pdf = require("santoku.pdf.capi")
 
@@ -51,19 +41,6 @@ local get_obj_type = pdf.get_obj_type
 local get_obj_subtype = pdf.get_obj_subtype
 local get_obj_dict = pdf.get_obj_dict
 local get_obj_array = pdf.get_obj_array
-
-local get_page_stream = pdf.get_page_stream
-local get_stream_token = pdf.get_stream_token
-local close_stream = pdf.close_stream
-
-local function clean_text (t)
-  local ok, val = pcall(iconv, t, "utf-8", "ascii", "translit")
-  if ok then
-    return sgsub(val, "[^%w%p]", "")
-  else
-    return sgsub(t, "[^%w%p]", "")
-  end
-end
 
 local function step (stack)
 
@@ -195,74 +172,12 @@ local function step (stack)
     if x then
       apush(stack, { array = x })
     end
-    if el.type == "Page" then
-      x = get_page_stream(el.obj)
-      if x then
-        apush(stack, { stream = x, type = "page" })
-      end
-    end
     return "open-obj", el.type, el.subtype
   end
 
   if el.obj and el.visited then
     stack[#stack] = nil
     return "close-obj", el.type, el.subtype
-  end
-
-  if el.stream and not el.visited then
-    el.visited = true
-    el.consumed = false
-    return "open-stream", el.type
-  end
-
-  if el.stream and el.visited and not el.consumed then
-    local val = get_stream_token(el.stream)
-    local nval = tonumber(val)
-    if not val then
-      el.consumed = true
-      return step(stack)
-    elseif el.in_text and val == "ET" then
-      el.in_text = false
-      return step(stack)
-    elseif not el.in_text and val == "BT" then
-      el.in_text = true
-      return step(stack)
-    elseif el.in_text and smatch(val, "^%(") then
-      el.spacing = false
-      val = clean_text(ssub(val, 2, #val))
-      el.hyphenated = smatch(val, "-$")
-      val = el.hyphenated and sgsub(val, "-$", "") or val
-      return "stream-token", "text", val
-    elseif el.in_text and smatch(val, "^%<") then
-      el.spacing = false
-      local res = {}
-      for i = 2, #val, 2 do
-        res[#res + 1] = schar(tonumber(ssub(val, i, i + 1), 16))
-      end
-      val = clean_text(acat(res))
-      el.hyphenated = smatch(val, "-$")
-      val = el.hyphenated and sgsub(val, "-$", "") or val
-      return "stream-token", "text", val
-    elseif el.in_text and ((nval and nval > 0)) then
-      return "stream-token", "text", ""
-    elseif el.in_text and ((nval and nval < 0) or smatch(val, "^T[DdJj]")) then
-      if not el.spacing then
-        el.spacing = true
-        return "stream-token", "text", el.hyphenated and "" or " "
-      else
-        return step(stack)
-      end
-    -- elseif el.in_text then
-    --   return "stream-token", "text", acat({ "[", val, "]" })
-    else
-      return "stream-token", "unknown", val
-    end
-  end
-
-  if el.stream and el.visited and el.consumed then
-    stack[#stack] = nil
-    close_stream(el.stream)
-    return "close-stream", el.type
   end
 
   error("invalid parser state", #stack)

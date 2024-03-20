@@ -10,7 +10,6 @@
 #define MT_DICT "santoku_pdf_dict"
 #define MT_ARRAY "santoku_pdf_array"
 #define MT_OBJECT "santoku_pdf_object"
-#define MT_STREAM "santoku_pdf_stream"
 
 typedef struct {
   lua_State *L;
@@ -33,10 +32,6 @@ typedef struct {
   pdfio_obj_t *obj;
 } tkpdf_obj_t;
 
-typedef struct {
-  pdfio_stream_t *stream;
-} tkpdf_stream_t;
-
 // TODO: Duplicated across various libraries, need to consolidate
 static inline void callmod (lua_State *L, int nargs, int nret, const char *smod, const char *sfn)
 {
@@ -55,7 +50,6 @@ static inline void callmod (lua_State *L, int nargs, int nret, const char *smod,
 #define peek_dict(L, i) ((tkpdf_dict_t *) luaL_checkudata(L, i, MT_DICT))
 #define peek_array(L, i) ((tkpdf_array_t *) luaL_checkudata(L, i, MT_ARRAY))
 #define peek_obj(L, i) ((tkpdf_obj_t *) luaL_checkudata(L, i, MT_OBJECT))
-#define peek_stream(L, i) ((tkpdf_stream_t *) luaL_checkudata(L, i, MT_STREAM))
 
 static inline bool on_error (pdfio_file_t *, const char *message, void *pdfp)
 {
@@ -458,56 +452,6 @@ static inline int get_obj_array (lua_State *L)
   return 1;
 }
 
-static inline int get_obj_stream (lua_State *L)
-{
-  lua_settop(L, 1);
-  tkpdf_obj_t *tkobj = peek_obj(L, 1);
-  pdfio_stream_t *stream = pdfioObjOpenStream(tkobj->obj, true);
-  if (!stream)
-    return 0;
-  tkpdf_stream_t *tkstream = lua_newuserdata(L, sizeof(tkpdf_stream_t)); // fp pdf
-  luaL_getmetatable(L, MT_STREAM); // fp pdf mt
-  lua_setmetatable(L, -2); // fp pdf
-  tkstream->stream = stream;
-  return 1;
-}
-
-static inline int get_page_stream (lua_State *L)
-{
-  lua_settop(L, 1);
-  tkpdf_obj_t *tkobj = peek_obj(L, 1);
-  pdfio_stream_t *stream = pdfioPageOpenStream(tkobj->obj, 0, true);
-  if (!stream)
-    return 0;
-  tkpdf_stream_t *tkstream = lua_newuserdata(L, sizeof(tkpdf_stream_t)); // fp pdf
-  luaL_getmetatable(L, MT_STREAM); // fp pdf mt
-  lua_setmetatable(L, -2); // fp pdf
-  tkstream->stream = stream;
-  return 1;
-}
-
-static inline int close_stream (lua_State *L)
-{
-  lua_settop(L, 1);
-  tkpdf_stream_t *tkstream = peek_stream(L, 1);
-  pdfioStreamClose(tkstream->stream);
-  return 0;
-}
-
-static inline int get_stream_token (lua_State *L)
-{
-  lua_settop(L, 1);
-  tkpdf_stream_t *tkstream = peek_stream(L, 1);
-  luaL_Buffer buf;
-  luaL_buffinit(L, &buf);
-  char *sbuf = luaL_prepbuffer(&buf);
-  if (!pdfioStreamGetToken(tkstream->stream, sbuf, LUAL_BUFFERSIZE))
-    return 0;
-  luaL_addsize(&buf, strnlen(sbuf, LUAL_BUFFERSIZE));
-  luaL_pushresult(&buf);
-  return 1;
-}
-
 luaL_Reg fns[] = {
   { "open", open },
   { "close", close },
@@ -542,10 +486,6 @@ luaL_Reg fns[] = {
   { "get_obj_subtype", get_obj_subtype },
   { "get_obj_dict", get_obj_dict },
   { "get_obj_array", get_obj_array },
-  { "get_obj_stream", get_obj_stream },
-  { "get_page_stream", get_page_stream },
-  { "close_stream", close_stream },
-  { "get_stream_token", get_stream_token },
   { NULL, NULL }
 };
 
@@ -564,8 +504,6 @@ int luaopen_santoku_pdf_capi (lua_State *L)
   luaL_newmetatable(L, MT_ARRAY);
   lua_pop(L, 1);
   luaL_newmetatable(L, MT_OBJECT);
-  lua_pop(L, 1);
-  luaL_newmetatable(L, MT_STREAM);
   lua_pop(L, 1);
   return 1;
 }
