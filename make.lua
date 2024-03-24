@@ -9,8 +9,6 @@ local env = {
   dependencies = {
     "lua >= 5.1",
     "santoku >= 0.0.203-1",
-    "santoku-system >= 0.0.23-1",
-    "lua-cjson >= 2.1.0.10-1"
   },
 
   test = {

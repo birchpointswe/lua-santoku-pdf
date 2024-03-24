@@ -4,19 +4,8 @@ local error = err.error
 local arr = require("santoku.array")
 local apush = arr.push
 
-local cjson = require("cjson")
-local jsdecode = cjson.decode
-
 local tbl = require("santoku.table")
 local merge = tbl.merge
-
-local sys = require("santoku.system")
-local execute = sys.execute
-
-local fs = require("santoku.fs")
-local rm = fs.rm
-local readfile = fs.readfile
-local tmpname = fs.tmpname
 
 local pdf = require("santoku.pdf.capi")
 
@@ -202,20 +191,6 @@ local function walk (fp)
   end
 end
 
-local function extract (fp)
-  local tfp = tmpname()
-  execute({
-    "mutool", "convert",
-    "-F", "stext.json",
-    "-O", "preserve-images,dehyphenate",
-    "-o", tfp, fp
-  })
-  local res = jsdecode(readfile(tfp))
-  rm(tfp)
-  return res
-end
-
 return merge({
   walk = walk,
-  extract = extract,
 }, pdf)
