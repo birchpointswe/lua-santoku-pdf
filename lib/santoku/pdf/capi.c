@@ -8,6 +8,7 @@
 #define MT_FILE "santoku_pdf_file"
 #define MT_PAGE "santoku_pdf_page"
 #define MT_DICT "santoku_pdf_dict"
+#define MT_STREAM "santoku_pdf_stream"
 #define MT_ARRAY "santoku_pdf_array"
 #define MT_OBJECT "santoku_pdf_object"
 
@@ -21,6 +22,10 @@ typedef struct {
 } tkpdf_page_t;
 
 typedef struct {
+  pdfio_stream_t *stream;
+} tkpdf_stream_t;
+
+typedef struct {
   pdfio_dict_t *dict;
 } tkpdf_dict_t;
 
@@ -32,8 +37,7 @@ typedef struct {
   pdfio_obj_t *obj;
 } tkpdf_obj_t;
 
-// TODO: Duplicated across various libraries, need to consolidate
-static inline void callmod (lua_State *L, int nargs, int nret, const char *smod, const char *sfn)
+static inline void tk_lua_callmod (lua_State *L, int nargs, int nret, const char *smod, const char *sfn)
 {
   lua_getglobal(L, "require"); // arg req
   lua_pushstring(L, smod); // arg req smod
@@ -45,8 +49,26 @@ static inline void callmod (lua_State *L, int nargs, int nret, const char *smod,
   lua_call(L, nargs, nret); // results
 }
 
+static inline unsigned int tk_lua_checkunsigned (lua_State *L, int i)
+{
+  lua_Integer l = luaL_checkinteger(L, i);
+  if (l < 0)
+    luaL_error(L, "value can't be negative");
+  if (l > UINT_MAX)
+    luaL_error(L, "value is too large");
+  return (unsigned int) l;
+}
+
+static inline unsigned int tk_lua_optunsigned (lua_State *L, int i, unsigned int def)
+{
+  if (lua_type(L, i) < 1)
+    return def;
+  return tk_lua_checkunsigned(L, i);
+}
+
 #define peek_file(L, i) ((tkpdf_file_t *) luaL_checkudata(L, i, MT_FILE))
 #define peek_page(L, i) ((tkpdf_page_t *) luaL_checkudata(L, i, MT_PAGE))
+#define peek_stream(L, i) ((tkpdf_stream_t *) luaL_checkudata(L, i, MT_STREAM))
 #define peek_dict(L, i) ((tkpdf_dict_t *) luaL_checkudata(L, i, MT_DICT))
 #define peek_array(L, i) ((tkpdf_array_t *) luaL_checkudata(L, i, MT_ARRAY))
 #define peek_obj(L, i) ((tkpdf_obj_t *) luaL_checkudata(L, i, MT_OBJECT))
@@ -57,8 +79,8 @@ static inline bool on_error (pdfio_file_t *, const char *message, void *pdfp)
   lua_State *L = tkpdf->L;
   lua_pushstring(L, "error parsing pdf");
   lua_pushstring(L, message);
-  callmod(L, 3, 0, "santoku.error", "error");
-  return 0;
+  tk_lua_callmod(L, 3, 0, "santoku.error", "error");
+  return 1;
 }
 
 static inline int open (lua_State *L)
@@ -74,15 +96,7 @@ static inline int open (lua_State *L)
   return 1;
 }
 
-static inline int get_num_pages (lua_State *L)
-{
-  lua_settop(L, 1);
-  tkpdf_file_t *tkpdf = peek_file(L, 1);
-  lua_pushinteger(L, pdfioFileGetNumPages(tkpdf->file));
-  return 1;
-}
-
-static inline int get_num_objs (lua_State *L)
+static inline int get_file_objs (lua_State *L)
 {
   lua_settop(L, 1);
   tkpdf_file_t *tkpdf = peek_file(L, 1);
@@ -90,7 +104,7 @@ static inline int get_num_objs (lua_State *L)
   return 1;
 }
 
-static inline int get_obj (lua_State *L)
+static inline int get_file_obj (lua_State *L)
 {
   lua_settop(L, 2);
   tkpdf_file_t *tkpdf = peek_file(L, 1);
@@ -99,34 +113,6 @@ static inline int get_obj (lua_State *L)
   luaL_getmetatable(L, MT_OBJECT); // fp pdf mt
   lua_setmetatable(L, -2); // fp pdf
   tkobj->obj = obj;
-  return 1;
-}
-
-static inline int get_page (lua_State *L)
-{
-  lua_settop(L, 2);
-  tkpdf_file_t *tkpdf = peek_file(L, 1);
-  pdfio_obj_t *page = pdfioFileGetPage(tkpdf->file, luaL_checkinteger(L, 2));
-  if (!page)
-    return 0;
-  tkpdf_page_t *tkpage = lua_newuserdata(L, sizeof(tkpdf_page_t)); // fp pdf
-  luaL_getmetatable(L, MT_PAGE); // fp pdf mt
-  lua_setmetatable(L, -2); // fp pdf
-  tkpage->page = page;
-  return 1;
-}
-
-static inline int get_page_dict (lua_State *L)
-{
-  lua_settop(L, 2);
-  tkpdf_page_t *tkpage = peek_page(L, 1);
-  pdfio_dict_t *dict = pdfioObjGetDict(tkpage->page);
-  if (!dict)
-    return 0;
-  tkpdf_dict_t *tkdict = lua_newuserdata(L, sizeof(tkpdf_dict_t)); // fp pdf
-  luaL_getmetatable(L, MT_DICT); // fp pdf mt
-  lua_setmetatable(L, -2); // fp pdf
-  tkdict->dict = dict;
   return 1;
 }
 
@@ -424,6 +410,40 @@ static inline int get_obj_subtype (lua_State *L)
   return 1;
 }
 
+static inline int get_stream_token (lua_State *L)
+{
+  lua_settop(L, 2);
+  tkpdf_stream_t *tkstream = peek_stream(L, 1);
+  unsigned bufsize = tk_lua_optunsigned(L, 2, 1024);
+  char buffer[bufsize];
+  if (!pdfioStreamGetToken(tkstream->stream, buffer, bufsize))
+    return 0;
+  lua_pushstring(L, buffer);
+  return 1;
+}
+
+static inline int close_stream (lua_State *L)
+{
+  lua_settop(L, 1);
+  tkpdf_stream_t *tkstream = peek_stream(L, 1);
+  pdfioStreamClose(tkstream->stream);
+  return 0;
+}
+
+static inline int get_obj_stream (lua_State *L)
+{
+  lua_settop(L, 1);
+  tkpdf_obj_t *tkobj = peek_obj(L, 1);
+  pdfio_stream_t *stream = pdfioObjOpenStream(tkobj->obj, true);
+  if (!stream)
+    return 0;
+  tkpdf_stream_t *tkstream = lua_newuserdata(L, sizeof(tkpdf_stream_t)); // fp pdf
+  luaL_getmetatable(L, MT_STREAM); // fp pdf mt
+  lua_setmetatable(L, -2); // fp pdf
+  tkstream->stream = stream;
+  return 1;
+}
+
 static inline int get_obj_dict (lua_State *L)
 {
   lua_settop(L, 1);
@@ -455,11 +475,8 @@ static inline int get_obj_array (lua_State *L)
 luaL_Reg fns[] = {
   { "open", open },
   { "close", close },
-  { "get_num_pages", get_num_pages },
-  { "get_page", get_page },
-  { "get_num_objs", get_num_objs },
-  { "get_obj", get_obj },
-  { "get_page_dict", get_page_dict },
+  { "get_file_objs", get_file_objs },
+  { "get_file_obj", get_file_obj },
   { "iter_dict_keys", iter_dict_keys },
   { "get_dict_type", get_dict_type },
   { "get_dict_dict", get_dict_dict },
@@ -484,8 +501,11 @@ luaL_Reg fns[] = {
   { "get_array_string", get_array_string },
   { "get_obj_type", get_obj_type },
   { "get_obj_subtype", get_obj_subtype },
+  { "get_obj_stream", get_obj_stream },
   { "get_obj_dict", get_obj_dict },
   { "get_obj_array", get_obj_array },
+  { "get_stream_token", get_stream_token },
+  { "close_stream", close_stream },
   { NULL, NULL }
 };
 
@@ -498,6 +518,8 @@ int luaopen_santoku_pdf_capi (lua_State *L)
   lua_setfield(L, -2, "__gc");
   lua_pop(L, 1);
   luaL_newmetatable(L, MT_PAGE);
+  lua_pop(L, 1);
+  luaL_newmetatable(L, MT_STREAM);
   lua_pop(L, 1);
   luaL_newmetatable(L, MT_DICT);
   lua_pop(L, 1);
