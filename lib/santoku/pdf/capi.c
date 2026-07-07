@@ -61,7 +61,7 @@ static inline bool on_error (pdfio_file_t *, const char *message, void *pdfp)
   return 0;
 }
 
-static inline int open (lua_State *L)
+static inline int pdf_open (lua_State *L)
 {
   lua_settop(L, 1);
   tkpdf_file_t *tkpdf = lua_newuserdata(L, sizeof(tkpdf_file_t));
@@ -177,7 +177,7 @@ static inline const char *valtype_name (pdfio_valtype_t t)
   }
 }
 
-static inline int close (lua_State *L)
+static inline int pdf_close (lua_State *L)
 {
   lua_settop(L, 1);
   tkpdf_file_t *tkpdf = peek_file(L, 1);
@@ -453,8 +453,8 @@ static inline int get_obj_array (lua_State *L)
 }
 
 luaL_Reg fns[] = {
-  { "open", open },
-  { "close", close },
+  { "open", pdf_open },
+  { "close", pdf_close },
   { "get_num_pages", get_num_pages },
   { "get_page", get_page },
   { "get_num_objs", get_num_objs },
@@ -494,7 +494,7 @@ int luaopen_santoku_pdf_capi (lua_State *L)
   lua_newtable(L);
   luaL_register(L, NULL, fns);
   luaL_newmetatable(L, MT_FILE);
-  lua_pushcfunction(L, close);
+  lua_pushcfunction(L, pdf_close);
   lua_setfield(L, -2, "__gc");
   lua_pop(L, 1);
   luaL_newmetatable(L, MT_PAGE);

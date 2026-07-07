@@ -1,7 +1,7 @@
 local env = {
 
   name = "santoku-pdf",
-  version = "0.0.6-1",
+  version = "0.0.7-1",
   variable_prefix = "TK_PDF",
   license = "MIT",
   public = true,
@@ -13,9 +13,7 @@ local env = {
 
   test = {
     dependencies = {
-      "santoku >= 0.0.328-1",
       "santoku-fs >= 0.0.45-1",
-      "luacov >= 0.15.0-1",
     }
   },
 
@@ -26,6 +24,6 @@ env.tarball = env.name .. "-" .. env.version .. ".tar.gz"
 env.download = env.homepage .. "/releases/download/" .. env.version .. "/" .. env.tarball
 
 return {
-  
+
   env = env,
 }
